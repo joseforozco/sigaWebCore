@@ -1,0 +1,164 @@
+FILAMENTPHP 5.X - CONTEXTO TÉCNICO PARA QWEN CODER
+===================================================
+
+[INFORMACIÓN BASE]
+- Framework: FilamentPHP 5.x (Server-Driven UI para Laravel)
+- Compatibilidad: PHP 8.2+, Laravel 11.28+, Livewire 4.x, Tailwind CSS 4.x
+- Lanzamiento: Enero 2026 - Soporte nativo para Livewire v4
+- Arquitectura: SDUI - UI definida en PHP, renderizada por servidor
+
+[PAQUETES CORE]
+• filament/filament    → Panel admin (meta-paquete)
+• filament/tables      → Tablas interactivas con filtros, orden, paginación
+• filament/forms       → Sistema de formularios con validación integrada
+• filament/schemas     → Base para componentes UI configurables
+• filament/actions     → Acciones modales reutilizables
+• filament/infolists   → Vistas de solo lectura (descripción de registros)
+• filament/widgets     → Widgets para dashboards
+• filament/notifications → Notificaciones flash, DB o broadcast
+
+[PATRÓN: RESOURCES (CRUD)]
+Estructura base: app/Filament/Resources/[Model]Resource.php
+
+Formulario:
+public static function form(Form $form): Form
+{
+    return $form->schema([
+        TextInput::make('title')->required()->maxLength(255),
+        RichEditor::make('content')->columnSpanFull(),
+        Select::make('status')
+            ->options(['draft','published'])
+            ->default('draft')
+            ->live(), // Reactividad Livewire 4
+    ]);
+}
+
+Tabla:
+public static function table(Table $table): Table
+{
+    return $table
+        ->columns([
+            TextColumn::make('title')->searchable()->sortable(),
+            TextColumn::make('author.name')->sortable(), // Relación
+            IconColumn::make('status')->boolean(),
+        ])
+        ->filters([...])
+        ->actions([
+            Tables\Actions\EditAction::make(),
+            Tables\Actions\DeleteAction::make(),
+        ]);
+}
+
+[VALIDACIÓN EN FORMULARIOS]
+// Preferir fluent API sobre arrays de Laravel
+TextInput::make('email')
+    ->email()
+    ->required()
+    ->unique(ignoreRecord: true)
+    ->maxLength(255)
+    ->helperText('Se usará para login');
+
+[REACTIVIDAD CON LIVEWIRE 4]
+// Campo con re-render al cambiar
+Select::make('category_id')
+    ->options(Category::pluck('name','id'))
+    ->live()
+    ->afterStateUpdated(fn ($state, Set $set) => 
+        $set('subcategory_id', null)
+    );
+
+// Visibilidad condicional
+TextInput::make('price')
+    ->numeric()
+    ->visible(fn (Get $get) => $get('type') === 'paid');
+
+[RELACIONES Y EAGER LOADING]
+// Dot notation (Filament hace eager load automático)
+TextColumn::make('author.email') // Post->author->email
+TextColumn::make('tags.name')->badge() // Many-to-many
+
+// Optimización manual si es necesario
+public static function getEloquentQuery(): Builder
+{
+    return parent::getEloquentQuery()
+        ->with(['author','tags'])
+        ->withoutGlobalScopes();
+}
+
+[CONFIGURACIÓN GLOBAL (BEST PRACTICE)]
+// AppServiceProvider::boot()
+Table::configureUsing(fn (Table $table) => 
+    $table->reorderableColumns()
+          ->filtersLayout(FiltersLayout::AboveContentCollapsible)
+          ->paginationPageOptions([10,25,50])
+);
+
+Form::configureUsing(fn (Form $form) => 
+    $form->columns(1)->schema([
+        Section::make()->columns(2)->schema([...])
+    ])
+);
+
+[FEATURES NUEVAS EN V5.X]
+• Livewire v4: Soporte nativo, mejor rendimiento y async requests
+• Filament Blueprint: IA para generar specs de componentes (premium)
+• Callout Component: Destacar información en formularios (v5.2.0)
+• Deferred Tab Badges: Carga diferida de badges en tabs (v5.3.0)
+• RichEditor Plugins: Plugins pueden proveer attachment providers
+
+[TESTING CON PEST/PHPUNIT]
+// tests/Feature/PostResourceTest.php
+it('can list posts', function () {
+    Post::factory(5)->create();
+    $this->actingAs(User::factory()->admin()->create())
+        ->get(PostResource::getUrl('index'))
+        ->assertSuccessful()
+        ->assertSee('Posts');
+});
+
+it('validates form rules', function () {
+    $this->actingAs(User::factory()->admin()->create())
+        ->post(PostResource::getUrl('create'), ['title' => ''])
+        ->assertHasErrors(['title' => 'required']);
+});
+
+[PERSONALIZACIÓN DE ESTILOS]
+/* resources/css/filament/admin/theme.css */
+.fi-btn { @apply rounded-sm; }
+.fi-fo-field-wrp-label { @apply text-sm font-semibold; }
+:root { --primary-500: #3b82f6; }
+
+// PanelProvider
+public function panel(Panel $panel): Panel
+{
+    return $panel
+        ->default()
+        ->id('admin')
+        ->path('admin')
+        ->brandLogo(fn () => view('filament.admin.logo'))
+        ->colors(['primary' => Color::Blue])
+        ->font('Inter')
+        ->viteTheme('resources/css/filament/admin/theme.css');
+}
+
+[SEGURIDAD Y RENDIMIENTO]
+1. XSS en Tablas: Validar siempre valores de summarizers (CVE-2026-33080)
+2. Autorización: Usar can() en Actions y Policies de Laravel
+3. N+1 Queries: Revisar eager loading en columnas con relaciones
+4. Carga diferida: Usar deferLoading() en tablas con muchos registros
+5. Cache: Filament cachea schemas; limpiar con php artisan view:clear en deploy
+
+[RECURSOS OFICIALES]
+• Docs v5.x: https://filamentphp.com/docs/5.x
+• Upgrade Guide: https://filamentphp.com/docs/5.x/upgrade-guide
+• Plugins: https://filamentphp.com/plugins
+• Blueprint (IA): https://filamentphp.com/content/danharrin-filament-v5-blueprint
+
+
+Filament v5 es funcionalmente idéntico a v4, excepto por el soporte a 
+Livewire v4. Nuevas features se publican para ambas versiones. 
+Priorizar código compatible con Livewire 4 (async requests, mejor reactivity).
+
+---
+Generado para: Pacho - Desarrollador Junior PHP/Laravel/Filament
+Fecha: Marzo 2026

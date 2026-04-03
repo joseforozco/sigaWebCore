@@ -1,0 +1,395 @@
+================================================================================
+  CHECKLIST DE AUDITORIA DE SEGURIDAD
+  Stack: Laravel 12 + Filament (ultimo estable) + PHP 8.4 + MySQL
+  Plugins: filament/*, spatie/permission, dompdf, OpenSpout,
+           filament-auto-logout, filament-edit-profile, html2media,
+           filament-daterangepicker, filament-currency, filament-pdf-viewer
+  Patron: Resources + Services + PdfController + ExcelController
+  Ultima actualizacion: 2026-03-22
+================================================================================
+
+OBJETIVO
+--------
+Detectar vulnerabilidades de seguridad ANTES de desplegar.
+NO es auditoria de codificacion (eso es Auditoria.txt).
+Enfocada en la superficie real de ataque de este patron:
+plugins de terceros sin version pin, campos ocultos en formularios,
+autorizacion insuficiente en Controllers, y mass assignment en User.
+
+PRIORIDADES
+-----------
+  [C] Critico — Explotable directamente.          BLOQUEA deploy sin excepcion.
+  [A] Alto    — Explotable con condiciones.        BLOQUEA deploy.
+  [M] Medio   — Exposicion indirecta o latente.   Registrar, evaluar caso a caso.
+
+ESTADOS
+-------
+  [ ] Pendiente   [OK] Aprobado   [FAIL] Fallo   [N/A] No aplica
+
+CUANDO EJECUTAR
+---------------
+  Antes de cualquier deploy que involucre:
+  - Nuevos campos en formularios Filament
+  - Nuevos metodos en PdfController o ExcelController
+  - Cambios en $fillable de cualquier Model
+  - Cambios en RoleSeeder o logica de permisos
+  - composer update (actualiza plugins sin version pin)
+
+
+================================================================================
+PASO 0 — IDENTIFICAR SUPERFICIE MODIFICADA
+================================================================================
+
+  git diff --name-only HEAD
+  git diff --name-only --cached
+
+  Marcar tipos presentes en este ciclo:
+
+  [ ] Models (cambios en $fillable)
+  [ ] Filament Resources / Schemas (nuevos campos o Hidden::make)
+  [ ] PdfController / ExcelController (nuevos metodos o rutas)
+  [ ] Routes / Middleware
+  [ ] RoleSeeder / permisos
+  [ ] composer.json / composer.lock (actualizaciones de plugins)
+  [ ] config/ o .env
+
+
+================================================================================
+REGLAS
+================================================================================
+
+--------------------------------------------------------------------------------
+REGLA 1 — PLUGINS SIN VERSION PIN — SUPERFICIE DE ATAQUE  [C]  BLOQUEA si FAIL
+--------------------------------------------------------------------------------
+crear2.ps1 instala Filament y todos los plugins sin version pin (ultimo estable).
+Un composer update puede introducir una version con vulnerabilidad conocida
+o cambiar comportamiento de seguridad sin que sea obvio.
+
+Plugins instalados sin pin:
+  filament/filament, awcodes/light-switch, swisnl/filament-backgrounds,
+  awcodes/filament-quick-create, schmeits/filament-character-counter,
+  malzariey/filament-daterangepicker-filter, torgodly/html2media,
+  joaopaulolndev/filament-pdf-viewer, joaopaulolndev/filament-edit-profile,
+  niladam/filament-auto-logout (desde fork VCS — riesgo adicional),
+  spatie/laravel-permission, barryvdh/laravel-dompdf
+
+Riesgo especial — niladam/filament-auto-logout desde fork VCS:
+  El repositorio origen es un fork no oficial. El codigo no esta auditado
+  por Packagist ni por el autor original. Un push al fork instala codigo
+  nuevo automaticamente en el siguiente composer update.
+
+Verificar tras cada composer update:
+  1. composer show --latest | grep -E "filament|spatie|dompdf|html2media"
+  2. Revisar CHANGELOG de paquetes actualizados en ese ciclo
+  3. Buscar CVEs conocidos: https://github.com/advisories?query=ecosystem:composer
+
+  Para el fork de auto-logout especificamente:
+  - Verificar que el repositorio fuente no haya tenido commits nuevos
+  - Si hubo commits: revisar el diff antes de actualizar
+
+  [ ] composer update no realizado sin revision de changelogs
+  [ ] niladam/filament-auto-logout: sin commits nuevos en el fork desde el ultimo update
+  [ ] Sin CVEs conocidos en paquetes actualizados en este ciclo
+  [ ] torgodly/html2media: verificar que no exponga rutas o endpoints propios
+
+
+--------------------------------------------------------------------------------
+REGLA 2 — dompdf — enable_php DESACTIVADO  [C]            BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+barryvdh/laravel-dompdf tiene la opcion enable_php que permite ejecutar
+PHP dentro de las vistas renderizadas como PDF. Si esta activa y una vista
+usa {!! !!} en datos de usuario, un atacante puede ejecutar codigo en el servidor.
+
+Aplica a: PdfController, config/dompdf.php
+
+  MAL:  ->setOption('enable_php', true)
+  MAL:  'enable_php' => true    // en config/dompdf.php
+
+  BIEN: ->setOption('enable_php', false)   // o simplemente omitir la linea
+  BIEN: 'enable_php' => env('DOMPDF_ENABLE_PHP', false)
+
+  Nota: Laravel compila Blade antes de pasarlo a dompdf.
+  enable_php no es necesario para renderizar vistas Blade normales.
+
+  Verificar tambien en vistas PDF:
+  MAL:  {!! $dato_de_usuario !!}    // XSS + RCE si enable_php=true
+  BIEN: {{ $dato_de_usuario }}      // escapado automatico
+
+  [ ] enable_php=false en todos los metodos del PdfController
+  [ ] enable_php=false o ausente en config/dompdf.php
+  [ ] Sin {!! !!} en datos que provienen de la base de datos o del usuario
+
+
+--------------------------------------------------------------------------------
+REGLA 3 — html2media — SUPERFICIE DE EXPORTACION  [M]     Registrar
+--------------------------------------------------------------------------------
+torgodly/html2media captura HTML del navegador para generar PDFs/imagenes.
+A diferencia de dompdf (server-side), html2media opera client-side.
+
+Riesgos a revisar:
+  - Si html2media expone rutas propias en el panel, verificar que esten
+    protegidas por autenticacion de Filament
+  - El contenido capturado viene del DOM — si el DOM incluye datos sensibles
+    (tokens, IDs internos), esos datos van al PDF generado
+  - Verificar que no haya endpoints de descarga sin autenticacion
+
+  [ ] Sin rutas de html2media accesibles sin autenticacion
+  [ ] Contenido capturado no incluye tokens ni datos sensibles del DOM
+
+
+--------------------------------------------------------------------------------
+REGLA 4 — MASS ASSIGNMENT EN User  [C]                    BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+El modelo User tiene campos privilegiados que NO deben estar en $fillable:
+el campo 'activo' controla si el usuario puede acceder al panel.
+
+Aplica a: app/Models/User.php
+
+  Campos que NUNCA deben estar en $fillable de User:
+  - activo           (controla acceso al panel)
+  - rol / role_id    (Spatie asigna roles por syncRoles, no por fillable)
+  - email_verified_at
+  - remember_token
+
+  Campo 'password' — permitido SOLO si el modelo tiene cast 'hashed':
+    'password' => 'hashed'   // Laravel hashea automaticamente — OK
+
+  Campos MFA (app_authentication_secret, etc.) — solo si los asigna
+  el propio sistema de MFA de Filament, no el formulario de usuario.
+
+  MAL:  protected $fillable = [..., 'activo', ...];
+  BIEN: $user->update(['activo' => true]);   // asignacion explicita por admin
+
+  [ ] 'activo' NO esta en $fillable
+  [ ] Sin campos de privilegio (rol, role_id) en $fillable
+  [ ] password tiene cast 'hashed' si esta en $fillable
+  [ ] Campos MFA asignados solo por el sistema, no por formularios
+
+
+--------------------------------------------------------------------------------
+REGLA 5 — FILAMENT: Hidden::make — DATOS DEL SERVIDOR  [C]  BLOQUEA si FAIL
+--------------------------------------------------------------------------------
+Campos Hidden en formularios Filament son modificables por el cliente
+antes de enviar. Nunca usar Hidden::make para campos que determinan
+costos, pertenencia, privilegios o estados de negocio.
+
+Aplica a: Filament Resources / Schemas
+
+  Campos que NUNCA deben ser Hidden::make:
+  - costo_unitario, costo_promedio   (afectan valoracion de inventario)
+  - usuario_id                       (usar mutateFormDataBeforeCreate)
+  - estado                           (el estado lo cambia el Service, no el form)
+  - rol, permisos
+
+  MAL:  Hidden::make('costo_unitario')     // cliente puede enviar costo falso
+  MAL:  Hidden::make('usuario_id')         // cliente puede enviar otro user_id
+
+  BIEN: ->mutateFormDataBeforeCreate(function (array $data): array {
+            $data['usuario_id'] = auth()->id();
+            $data['costo_unitario'] = Producto::find($data['producto_id'])
+                ->costo_promedio;
+            return $data;
+        })
+
+  [ ] Sin Hidden::make para campos de costo o valoracion de inventario
+  [ ] Sin Hidden::make para usuario_id u otros campos de pertenencia
+  [ ] Sin Hidden::make para campos de estado de negocio
+  [ ] usuario_id asignado en mutateFormDataBeforeCreate con auth()->id()
+
+
+--------------------------------------------------------------------------------
+REGLA 6 — AUTORIZACION EN PdfController / ExcelController  [A]  BLOQUEA si FAIL
+--------------------------------------------------------------------------------
+Auth::check() solo verifica autenticacion. Un vendedor autenticado
+puede acceder a reportes de costos, compras y rentabilidad si el
+Controller solo verifica que el usuario este logueado.
+
+Aplica a: PdfController, ExcelController
+
+  MAL:  abort_unless(Auth::check(), 403);
+        // cualquier usuario autenticado descarga el reporte
+
+  BIEN: abort_unless(Auth::user()?->can('reporte.ver'), 403);
+  BIEN: abort_unless(Auth::user()?->can('compra.ver'), 403);  // para compras
+
+  Tabla de permisos minimos por reporte:
+    kardex               → stock.ver
+    cartera              → venta.ver + reporte.ver
+    reporteVentas        → venta.ver + reporte.ver
+    reporteCompras       → compra.ver + reporte.ver
+    inventarioValorizado → stock.ver + reporte.ver
+    rentabilidad         → reporte.ver + reporte.exportar
+    ventasVendedor       → reporte.ver + usuarios.ver
+    productosSinMov      → stock.ver + reporte.ver
+
+  [ ] Cada metodo de PdfController verifica permiso especifico, no solo auth
+  [ ] Cada metodo de ExcelController verifica permiso especifico, no solo auth
+  [ ] Permisos usados existen en el RoleSeeder
+  [ ] Vendedor no puede acceder a reportes de costos ni compras
+
+
+--------------------------------------------------------------------------------
+REGLA 7 — FILAMENT: ALCANCE DE DATOS POR ROL  [A]         BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+Por defecto un Resource lista TODOS los registros de la tabla.
+Si hay roles con visibilidad parcial (vendedor ve solo sus ventas),
+getEloquentQuery() debe filtrar por usuario o rol.
+
+Aplica a: Filament Resources
+
+  MAL:  // Resource sin getEloquentQuery() — todos ven todos los registros
+
+  BIEN (sistema de un solo negocio, todos ven todo — documentar decision):
+        // No aplica — todos los roles autorizados tienen visibilidad total
+        // [N/A] justificado
+
+  BIEN (si hay roles con visibilidad parcial):
+        public static function getEloquentQuery(): Builder
+        {
+            if (auth()->user()->hasRole('administrador')) {
+                return parent::getEloquentQuery();
+            }
+            return parent::getEloquentQuery()
+                ->where('usuario_id', auth()->id());
+        }
+
+  [ ] Cada Resource: decision de scope documentada o getEloquentQuery() definido
+  [ ] Vendedor no ve registros de otros vendedores si el negocio lo requiere
+  [ ] Administrador tiene visibilidad total
+
+
+--------------------------------------------------------------------------------
+REGLA 8 — PERMISOS SPATIE — CONSISTENCIA  [A]             BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+Un typo entre can() en codigo y el string en RoleSeeder falla silenciosamente:
+puede bloquear acceso legitimo o permitir acceso indebido.
+
+Aplica a: Resources, Controllers, RoleSeeder
+
+Patron del proyecto: modulo.accion con punto como separador, todo minusculas.
+
+  MAL:  can('ventas.editar')    // plural
+        'venta.editar'          // singular en el seeder — no matchea
+
+  MAL:  can('venta.editar ')    // espacio al final — nunca matchea
+
+  Verificar:
+  - Cada permiso usado en can() existe en el RoleSeeder
+  - Mismo caso, sin espacios, mismo separador (punto)
+  - Al agregar nuevo permiso en codigo → agregarlo al seeder en el mismo ciclo
+  - Al agregar nuevo rol → asignarle permisos explicitamente
+
+  [ ] Cada can('string') tiene su entrada exacta en el RoleSeeder
+  [ ] Sin diferencias de singular/plural, mayusculas o espacios
+  [ ] Nuevos permisos en codigo → en seeder en el mismo ciclo
+  [ ] Nuevos roles tienen permisos asignados
+
+
+--------------------------------------------------------------------------------
+REGLA 9 — filament-edit-profile — CAMPOS EDITABLES  [A]   BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+joaopaulolndev/filament-edit-profile permite al usuario editar su propio perfil.
+Verificar que los campos habilitados no incluyan campos de privilegio.
+
+Aplica a: AdminPanelProvider, configuracion de FilamentEditProfilePlugin
+
+  Campos que NO debe permitir editar el plugin:
+  - activo      (solo el admin puede activar/desactivar)
+  - roles       (solo el admin asigna roles)
+  - cargo       (si determina nivel de acceso — evaluar)
+
+  Verificar en AdminPanelProvider:
+  - shouldShowDeleteAccountForm(false) — el usuario no puede eliminarse
+  - shouldShowSanctumTokens() — si esta habilitado, los tokens son sensibles
+
+  [ ] Plugin no permite editar 'activo' ni 'roles'
+  [ ] shouldShowDeleteAccountForm(false) esta activo
+  [ ] Si shouldShowSanctumTokens() esta habilitado: evaluar si es necesario
+
+
+--------------------------------------------------------------------------------
+REGLA 10 — VARIABLES DE ENTORNO Y DEBUG  [A]              BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+APP_DEBUG=true en produccion expone stack traces con rutas, configuracion
+y variables de entorno al usuario final.
+
+Aplica a: .env de produccion, cualquier archivo PHP
+
+  [ ] APP_DEBUG=false en produccion
+  [ ] APP_ENV=production en produccion
+  [ ] Sin credenciales hardcodeadas en codigo PHP
+  [ ] .env en .gitignore (nunca subir al repositorio)
+  [ ] Sin dd(), dump(), var_dump() en archivos a desplegar
+  [ ] Sin ray() o clockwork activo en produccion
+
+
+================================================================================
+PASO 1 — VERIFICACION CRUZADA
+================================================================================
+
+  [ ] composer.lock revisado si hubo composer update          (R1)
+  [ ] enable_php=false en todos los metodos de PdfController  (R2)
+  [ ] Sin Hidden::make para campos de costo o pertenencia     (R5)
+  [ ] PdfController/ExcelController usan permiso especifico   (R6)
+  [ ] Cada can('string') en codigo existe en RoleSeeder       (R8)
+  [ ] filament-edit-profile no expone campos de privilegio    (R9)
+
+
+================================================================================
+PASO 2 — RESUMEN DEL CICLO
+================================================================================
+
+  Archivos auditados:  ___________________________________
+  Fecha:               ___________________________________
+  Ciclo / tarea:       ___________________________________
+
+  Reglas aplicadas:    ___  de 10
+  OK: ___   FAIL: ___   N/A: ___   M: ___
+
+  DECISION:
+  [ ] APROBADO  — Todos los [C] y [A] en OK.
+  [ ] BLOQUEADO — Hay FAIL en [C] o [A]. Corregir antes de deploy.
+  [ ] OBSERVACIONES: _____________________________________________
+
+
+================================================================================
+MATRIZ RAPIDA
+================================================================================
+
+  Models                →  R4
+  Resources / Schemas   →  R5, R7
+  PdfController         →  R2, R6
+  ExcelController       →  R6
+  AdminPanelProvider    →  R9
+  RoleSeeder            →  R8
+  composer.json/lock    →  R1
+  config/ / .env        →  R2, R10
+
+
+================================================================================
+NOTAS DE ALCANCE — QUE NO APLICA A ESTE STACK
+================================================================================
+
+  SQL Injection directa:
+    Eloquent usa PDO con bindings — cubierto automaticamente.
+    El riesgo puntual (selectRaw/whereRaw) esta en Auditoria.txt R2.
+
+  XSS en Blade:
+    {{ }} escapa automaticamente. Riesgo solo si se agrega {!! !!}
+    en datos de usuario — en ese caso auditar antes de deploy.
+
+  CSRF:
+    Laravel lo incluye por defecto en Filament y en rutas web.
+    No requiere auditoria manual en este patron.
+
+  Uploads de archivos:
+    No hay en el stack base. Si se agrega en el futuro,
+    requiere auditoria especifica de tipo MIME, tamano y almacenamiento.
+
+  APIs / JSON endpoints:
+    No hay. Si se agregan, requieren Sanctum y auditoria de autorizacion.
+
+
+================================================================================
+FIN DEL CHECKLIST DE SEGURIDAD
+================================================================================

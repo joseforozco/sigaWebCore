@@ -1,0 +1,35 @@
+# Contexto del Proyecto testinv
+
+## Información General
+- **Nombre**: testinv
+- **Título**: Gestión Administrativa de Inventarios
+- **Base de datos**: testinv
+- **URL**: https://testinv.test
+- **Empresa**: SIGA Software
+
+## Stack Tecnológico
+- Laravel 12 LTS
+- Filament v5.x
+- Spatie Permissions
+- DDD Architecture
+- PowerShell 7.5 optimizations
+
+## Estructura DDD
+- app/Services/
+- app/Repositories/
+- app/DataTransferObjects/
+- app/Observers/
+- app/Enums/
+
+## Plugins Instalados
+1. tapp/filament-footer
+2. nben/filament-record-nav
+3. torgodly/html2media
+4. swisnl/filament-backgrounds
+5. awcodes/light-switch
+6. awcodes/filament-quick-create
+7. pxlrbt/filament-excel
+
+## Estado de Instalación
+Creado: 2026-04-02 15:03:35
+Script: crear3.ps1 v23.0

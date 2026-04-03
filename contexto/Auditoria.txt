@@ -1,0 +1,402 @@
+================================================================================
+  CHECKLIST DE AUDITORIA DE CODIGO
+  Stack: Laravel 12 + Filament (ultimo estable) + PHP 8.4 + MySQL
+  Patron: Resources + Services + PdfController + ExcelController
+  Sin APIs. Sin Form Requests. Eloquent puro + selectRaw en reportes.
+  Ultima actualizacion: 2026-03-22
+================================================================================
+
+OBJETIVO
+--------
+Detectar errores de codificacion ANTES de desplegar.
+NO cubre logica de negocio — eso va en tests (Pest).
+Enfocada en los puntos donde este patron de desarrollo falla con frecuencia:
+copy-paste entre modulos, enums mal usados, selectRaw sin bindings,
+soft deletes ignorados en queries manuales, y transacciones incompletas.
+
+PRIORIDADES
+-----------
+  [C] Critico — Error garantizado en produccion.           BLOQUEA deploy.
+  [A] Alto    — Datos incorrectos o silenciosamente malos.  BLOQUEA deploy.
+  [M] Medio   — Degradacion silenciosa o warning.           Registrar, no bloquea.
+
+ESTADOS
+-------
+  [ ] Pendiente   [OK] Aprobado   [FAIL] Fallo   [N/A] No aplica
+
+
+================================================================================
+PASO 0 — IDENTIFICAR ARCHIVOS MODIFICADOS
+================================================================================
+
+  git diff --name-only HEAD
+  git diff --name-only --cached
+  (o consultar Historico.txt / TaskList.txt del ciclo)
+
+  [ ] Lista de archivos modificados documentada
+
+
+================================================================================
+PASO 1 — CLASIFICAR POR TIPO
+================================================================================
+
+  [ ] Models
+  [ ] Services
+  [ ] Filament Resources / Schemas / Tables
+  [ ] Filament Pages / Widgets (reportes con selectRaw)
+  [ ] Views Blade PDF
+  [ ] PdfController / ExcelController
+  [ ] Migrations
+  [ ] Enums
+  [ ] Exporters (Filament Exporters)
+
+
+================================================================================
+PASO 2 — REGLAS
+================================================================================
+
+--------------------------------------------------------------------------------
+REGLA 1 — ESQUEMA vs CODIGO  [C]                          BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+Toda columna referenciada debe existir en la migracion real.
+Error mas frecuente en este patron: copy-paste entre modulos similares
+(ventas → compras → remisiones → devoluciones).
+
+Aplica a: Models, Services, Resources, Schemas, Views/Blade, Controllers, Exporters
+
+Donde buscar:
+  Eloquent:  where(), sum(), selectRaw(), orderBy(), pluck(),
+             groupBy(), withSum(), withCount(), whereHas(), having()
+  Filament:  TextColumn::make(), TextEntry::make(), ->sortable('col'),
+             ->searchable('col'), SummarizeSum::make('col')
+  Exporters: ExportColumn::make('col')
+  Blade PDF: $modelo->columna, $coleccion->sum('columna')
+  Services:  ->update(['columna' => $valor]), ->create([...])
+
+Procedimiento obligatorio:
+  1. Identificar cada tabla que toca el archivo modificado
+  2. Abrir la migracion de cada tabla (database/migrations/)
+  3. Comparar columna por columna — no confiar en memoria ni autocomplete
+
+  MAL:  ->sum('impuesto')          // copiado de modulo anterior, es 'impuestos'
+  BIEN: ->sum('impuestos')
+
+  MAL:  ->where('user_id', $x)    // copiado, la convencion es 'usuario_id'
+  BIEN: ->where('usuario_id', $x)
+
+  [ ] Tablas tocadas por el archivo identificadas
+  [ ] Migraciones de cada tabla abiertas y comparadas
+  [ ] Cada columna referenciada existe en la migracion real
+
+
+--------------------------------------------------------------------------------
+REGLA 2 — selectRaw / whereRaw — BINDINGS OBLIGATORIOS  [C]  BLOQUEA si FAIL
+--------------------------------------------------------------------------------
+En reportes, widgets y dashboards es comun usar selectRaw/whereRaw.
+Si se interpolan variables directamente en el string SQL hay riesgo de
+inyeccion — aunque sea con datos internos o de sesion.
+
+Aplica a: Filament Pages (reportes), Widgets, PdfController, ExcelController
+
+  MAL:  ->whereRaw("fecha >= '$desde' AND fecha <= '$hasta'")
+  MAL:  ->whereRaw("estado = '$estado'")
+  MAL:  ->groupByRaw("DATE_FORMAT(fecha, '$formato')")
+
+  BIEN: ->whereRaw("fecha >= ? AND fecha <= ?", [$desde, $hasta])
+  BIEN: ->whereRaw("estado = ?", [$estado->value])
+
+  Enums en raw — siempre ->value:
+  MAL:  ->whereRaw("estado = '$estado'")        // BackedEnum se castea a string
+  BIEN: ->whereRaw("estado = ?", [$estado->value])
+
+  Nota: los nombres de columna en SELECT son fijos y no necesitan binding.
+  Lo que necesita binding son los VALUES en condiciones WHERE / HAVING.
+
+  [ ] Sin variables interpoladas en whereRaw() / havingRaw() / orderByRaw()
+  [ ] Sin variables interpoladas en groupByRaw()
+  [ ] Enums en queries raw usan ->value
+  [ ] Fechas y filtros de usuario pasados como bindings
+
+
+--------------------------------------------------------------------------------
+REGLA 3 — NULL SAFETY  [C]                                BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+Todo acceso a relacion o propiedad nullable debe usar ?->
+Riesgo principal en callbacks de Exporters, closures de Filament
+y mapeos en PdfController/ExcelController.
+
+Aplica a: Models, Services, Resources, Schemas, Views/Blade, Controllers, Exporters
+
+Zonas de riesgo habituales:
+  - Relaciones opcionales: cliente, proveedor, impuesto, bodega, usuario
+  - Registros historicos donde la relacion fue eliminada posteriormente
+  - formatStateUsing() en TextColumn / TextEntry
+  - map() / mapWithKeys() / each() en Controllers
+  - Closures en ->color(), ->badge(), ->icon()
+
+  MAL:  $venta->cliente->nombre
+  MAL:  $m->bodega->nombre                         // en map() de ExcelController
+  MAL:  fn($state) => $state->label()              // $state puede ser null
+  BIEN: $venta->cliente?->nombre ?? '—'
+  BIEN: $m->bodega?->nombre ?? '-'
+  BIEN: fn($state) => $state?->label() ?? '—'
+
+  [ ] Sin cadenas ->relacion->campo sin ?->
+  [ ] Callbacks en map(), each(), mapWithKeys() usan ?->
+  [ ] formatStateUsing() y closures de Filament usan ?->
+  [ ] Vistas Blade PDF usan ?-> en todas las relaciones
+  [ ] Exporters usan ?-> en formatStateUsing()
+
+
+--------------------------------------------------------------------------------
+REGLA 4 — ENUMS (BackedEnum PHP 8.x)  [C]                 BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+PHP no permite BackedEnum como clave de array asociativo — se castea
+silenciosamente y pierde sus metodos. TypeError en runtime.
+
+Aplica a: Models, Services, Resources, Enums, Filament Pages
+
+  MAL:  [MiEstado::ACTIVO => 'label']
+        foreach ($arr as $k => $v) { $k->label(); }   // TypeError
+
+  BIEN: [MiEstado::ACTIVO, MiEstado::INACTIVO]
+        foreach ($arr as $estado) { $estado->label(); }
+
+En queries Eloquent:
+  CON $casts en el modelo: pasar el enum directamente es valido
+  SIN $casts: obligatorio ->value
+
+  MAL:  ->where('estado', MiEstado::ACTIVO)      // sin cast en el modelo
+  BIEN: ->where('estado', MiEstado::ACTIVO->value)
+
+En raw queries — siempre ->value sin excepcion:
+  ->whereRaw("estado = ?", [MiEstado::ACTIVO->value])
+
+  [ ] Sin Enum como clave de array asociativo
+  [ ] Iteraciones usan ->value o ->label() directamente sobre el enum
+  [ ] Modelos sin $casts del enum usan ->value en queries
+  [ ] Raw queries siempre usan ->value
+
+
+--------------------------------------------------------------------------------
+REGLA 5 — IMPORTS Y NAMESPACES FILAMENT  [C]              BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+crear2.ps1 instala Filament sin version pin (ultimo estable).
+Un composer update puede mover namespaces entre versiones menores.
+
+Aplica a: Resources, Schemas, Tables, Pages, Widgets
+
+Namespaces que cambian entre versiones:
+  Section:        Filament\Schemas\Components\Section
+  Schema/Form:    callback recibe Schema $schema  (no Form $form)
+  Acciones tabla: Tables\Actions\*
+  Tab:            Filament\Schemas\Components\Tabs\Tab
+  Hidden:         Filament\Schemas\Components\Hidden
+
+Senales de alerta — si se ve esto, verificar contra version instalada:
+  use Filament\Forms\Components\*     // puede ser namespace de v3
+  form(Form $form)                    // puede necesitar Schema $schema
+  ->actions([...]) en tabla           // puede ser ->recordActions()
+
+Verificacion rapida post composer update:
+  php artisan about   → confirmar version de Filament instalada
+
+  [ ] Todos los use statements verificados contra la version instalada
+  [ ] Sin imports de namespaces de versiones anteriores
+  [ ] Sin imports sin usar
+  [ ] Post composer update: php artisan about sin errores de boot
+
+
+--------------------------------------------------------------------------------
+REGLA 6 — TIPOS Y CASTEO MONETARIO  [A]                   BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+No mezclar float de PHP con decimal de MySQL.
+Plugin instalado por crear2.ps1: ariaieboy/filament-currency → ->currency()
+
+Aplica a: Migrations, Models, Resources, Views Blade PDF, Exporters
+
+  Migraciones — siempre decimal:
+  MAL:  $table->float('precio')
+  BIEN: $table->decimal('precio', 15, 2)
+
+  Comparaciones — float es impreciso:
+  MAL:  if ($total === 0.0)
+  BIEN: if (round($total, 2) == 0)
+
+  Filament — plugin instalado:
+  MAL:  ->money('COP')     // NumberFormatter, ignora config/money.php
+  BIEN: ->currency('COP')  // ariaieboy/filament-currency
+
+  Blade PDF — siempre 4 parametros:
+  MAL:  number_format($valor)
+  BIEN: number_format($valor, 2, ',', '.')
+
+  [ ] Sin $table->float() para valores monetarios
+  [ ] Sin comparaciones === con float
+  [ ] ->currency() en lugar de ->money() en Resources y Exporters
+  [ ] number_format() con 4 parametros en vistas Blade PDF
+
+
+--------------------------------------------------------------------------------
+REGLA 7 — SOFT DELETES EN QUERIES  [A]                    BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+DB::table() y raw queries NO filtran deleted_at automaticamente.
+En reportes y widgets es comun usar selectRaw para agregaciones — ahi se cuela.
+
+Aplica a: Services, Filament Pages, Widgets, PdfController, ExcelController
+
+  MAL:  DB::table('ventas')->sum('total')      // incluye registros eliminados
+  MAL:  ->selectRaw('SUM(total) FROM ventas')  // sin filtro deleted_at
+
+  BIEN: Venta::query()->sum('total')           // Eloquent filtra automatico
+  BIEN: ->whereNull('ventas.deleted_at')       // si se debe usar DB::table()
+
+  Verificar que tablas involucradas en reportes no tengan SoftDeletes
+  antes de asumir que el resultado es correcto.
+
+  [ ] Sin DB::table() sobre modelos con SoftDeletes sin whereNull('deleted_at')
+  [ ] Reportes y widgets usan Eloquent o filtran deleted_at explicitamente
+  [ ] Joins manuales filtran deleted_at de cada tabla que use SoftDeletes
+  [ ] selectRaw sobre tablas con SoftDeletes incluye deleted_at IS NULL
+
+
+--------------------------------------------------------------------------------
+REGLA 8 — RUTAS vs CONTROLLERS  [C]                       BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+Las unicas rutas manuales son /pdf/* y /excel/* en web.php.
+
+Aplica a: web.php, PdfController, ExcelController
+
+  [ ] Cada Route::get apunta a un metodo que existe en el Controller
+  [ ] Nombres ->name('pdf.X') usados en route('pdf.X') estan registrados
+  [ ] Parametros de ruta {modelo} coinciden con la firma del metodo
+  [ ] Sin rutas huerfanas (registrada pero metodo eliminado o renombrado)
+
+
+--------------------------------------------------------------------------------
+REGLA 9 — BLADE PDF — VARIABLES Y RELACIONES  [C]         BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+Toda variable usada en una vista PDF debe ser pasada desde el Controller.
+Las relaciones accedidas deben estar cargadas con ->with() o ->load().
+
+Aplica a: PdfController, ExcelController, resources/views/pdf/
+
+  MAL:  Pdf::loadView('pdf.reporte', ['ventas' => $ventas]);
+        // la vista accede a $empresa — no fue pasada
+
+  BIEN: Pdf::loadView('pdf.reporte', [
+            'ventas'  => $ventas,
+            'empresa' => Empresa::actual(),
+        ]);
+
+  MAL:  $ventas = Venta::all();
+        // la vista accede a $v->cliente->nombre en un loop — N+1
+
+  BIEN: $ventas = Venta::with(['cliente', 'detalles.producto'])->get();
+
+  [ ] Cada variable usada en la vista fue pasada desde el Controller
+  [ ] Relaciones accedidas en vistas PDF cargadas con ->with() o ->load()
+  [ ] Sin N+1 en vistas PDF (relaciones en loop estan en ->with())
+  [ ] $empresa siempre pasada en vistas que muestran datos de la empresa
+
+
+--------------------------------------------------------------------------------
+REGLA 10 — PERMISOS SPATIE — STRINGS CORRECTOS  [A]       BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+Spatie valida por string exacto. Copy-paste deja el permiso de otro metodo.
+Patron del proyecto: modulo.accion (ej: venta.crear, producto.editar)
+
+Aplica a: Resources, PdfController, ExcelController, RoleSeeder
+
+  MAL:  canEdit()   → can('venta.crear')     // copy-paste de canCreate()
+  BIEN: canEdit()   → can('venta.editar')
+
+  Tabla de verificacion:
+    canViewAny() → modulo.ver
+    canCreate()  → modulo.crear
+    canEdit()    → modulo.editar
+    canDelete()  → modulo.eliminar
+
+  En PdfController/ExcelController:
+    abort_unless() debe usar permiso especifico del reporte,
+    no solo Auth::check() (autenticado != autorizado a ese reporte).
+
+  [ ] Cada can('string') revisado contra el RoleSeeder
+  [ ] Sin copy-paste de permisos entre metodos can*()
+  [ ] Controllers de PDF/Excel usan permiso especifico, no solo Auth::check()
+  [ ] Nuevos permisos agregados al RoleSeeder en el mismo ciclo
+
+
+--------------------------------------------------------------------------------
+REGLA 11 — TRANSACCIONES — ATOMICIDAD  [C]                BLOQUEA deploy si FAIL
+--------------------------------------------------------------------------------
+Operaciones en Services que modifican 2+ tablas deben usar DB::transaction().
+Error tipico: agregar un efecto secundario fuera de la transaccion existente.
+
+Aplica a: Services
+
+  MAL:  DB::transaction(function() use ($data) {
+            $doc = Documento::create($data);
+        });
+        $this->registrarAuditoria($doc);   // fuera de la tx — inconsistente
+
+  BIEN: DB::transaction(function() use ($data) {
+            $doc = Documento::create($data);
+            StockBodega::ajustar($doc);
+            $this->registrarAuditoria($doc);   // todo dentro
+        });
+
+  [ ] Toda operacion multi-tabla usa DB::transaction()
+  [ ] Efectos secundarios (stock, caja, auditoria, movimientos) dentro de la tx
+  [ ] Sin logica de negocio despues del cierre de la transaccion
+  [ ] Excepciones dentro de la tx no quedan silenciadas con catch vacio
+
+
+================================================================================
+PASO 3 — VERIFICACION CRUZADA
+================================================================================
+
+  [ ] Toda columna en codigo         ↔  migracion real abierta           (R1)
+  [ ] Todo selectRaw/whereRaw        ↔  sin variables interpoladas        (R2)
+  [ ] Toda ruta /pdf/ o /excel/      ↔  metodo existente en Controller    (R8)
+  [ ] Toda variable en vista Blade   ↔  pasada desde el Controller        (R9)
+  [ ] Todo can('string')             ↔  string en RoleSeeder              (R10)
+  [ ] Todo Service multi-tabla       ↔  dentro de DB::transaction()       (R11)
+
+
+================================================================================
+PASO 4 — RESUMEN DEL CICLO
+================================================================================
+
+  Archivos auditados:  ___________________________________
+  Fecha:               ___________________________________
+  Ciclo / tarea:       ___________________________________
+
+  Reglas aplicadas:    ___  de 11
+  OK: ___   FAIL: ___   N/A: ___   M: ___
+
+  DECISION:
+  [ ] APROBADO  — Todos los [C] y [A] en OK.
+  [ ] BLOQUEADO — Hay FAIL en [C] o [A]. Corregir antes de deploy.
+  [ ] OBSERVACIONES: _____________________________________________
+
+
+================================================================================
+MATRIZ RAPIDA
+================================================================================
+
+  Models                     →  R1, R3, R4, R7
+  Services                   →  R1, R3, R4, R7, R11
+  Resources / Schemas        →  R1, R3, R4, R5, R6, R10
+  Filament Pages / Widgets   →  R1, R2, R3, R4, R7
+  Views Blade PDF            →  R3, R6, R9
+  PdfController              →  R8, R9, R10
+  ExcelController            →  R8, R9, R10
+  Migrations                 →  R6
+  Enums                      →  R4
+  Exporters                  →  R1, R3, R6
+
+
+================================================================================
+FIN DEL CHECKLIST DE CODIGO
+================================================================================
