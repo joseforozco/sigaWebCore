@@ -27,13 +27,17 @@ El script solicita:
 | Nombre del proyecto | Nombre de carpeta y base de datos |
 | Base de datos | Nombre del schema MySQL |
 | Título de la app | Aparece en el panel y correos |
+| URL de la aplicación | Por defecto `https://{nombre}.test` |
 | Footer empresa | Nombre en el pie de página |
 | Footer URL | Enlace en el pie de página |
 
-Luego clona este repositorio, genera el `.env`, ejecuta `migrate:fresh --seed`
-y optimiza la app. Al finalizar, el proyecto queda accesible en
-`https://siga.test/admin`.
+Luego clona este repositorio, crea la base de datos, genera el `.env`,
+ejecuta `migrate:fresh --seed`, compila assets y optimiza la app.
 
+## Credenciales por defecto
+
+El script configura un usuario administrador con los valores definidos en
+`ADMIN_EMAIL` y `ADMIN_PASSWORD` dentro del `.env` generado.
 
 ## Plugins incluidos
 
@@ -46,7 +50,7 @@ y optimiza la app. Al finalizar, el proyecto queda accesible en
 | `awcodes/light-switch` | Modo claro/oscuro |
 | `awcodes/filament-quick-create` | Creación rápida desde navbar |
 | `pxlrbt/filament-excel` | Exportación Excel |
-| `joaopaulolndev/filament-edit-profile` | Edición de perfil con 2FA y tokens |
+| `joaopaulolndev/filament-edit-profile` | Edición de perfil con 2FA |
 | `joseforozco/filament-auto-logout` | Cierre de sesión automático por inactividad |
 
 ## Módulos base incluidos
@@ -67,3 +71,21 @@ y optimiza la app. Al finalizar, el proyecto queda accesible en
 - 2FA opcional: TOTP (app autenticadora) y por correo
 - Auto-logout configurable vía variables de entorno:
 
+```env
+FILAMENT_AUTO_LOGOUT_ENABLED=true
+FILAMENT_AUTO_LOGOUT_DURATION_IN_SECONDS=180
+FILAMENT_AUTO_LOGOUT_WARN_BEFORE_IN_SECONDS=30
+FILAMENT_AUTO_LOGOUT_SHOW_TIME_LEFT=true
+```
+
+## Variables de entorno relevantes
+
+```env
+APP_NAME="Nombre del proyecto"
+APP_URL=https://proyecto.test
+APP_TIMEZONE=America/Bogota
+APP_LOCALE=es
+DB_DATABASE=nombre_db
+FOOTER_COMPANY_NAME="SIGA Software"
+FOOTER_COMPANY_URL="https://www.ejemplo.com"
+```
