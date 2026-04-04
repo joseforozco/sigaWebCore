@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Empresas\Tables;
 
-use App\Filament\Resources\Empresas\EmpresaResource;
 use Filament\Actions\EditAction;
+use Illuminate\Support\Facades\Auth;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -33,9 +33,9 @@ class EmpresasTable
             ])
             ->recordActions([
                 EditAction::make()
-                    ->visible(fn () => EmpresaResource::isSuperAdmin()),
+                    ->visible(fn () => Auth::user()?->can('empresa.editar') ?? false),
                 ViewAction::make()
-                    ->visible(fn () => !EmpresaResource::isSuperAdmin()),
+                    ->visible(fn () => !Auth::user()?->can('empresa.editar')),
             ]);
     }
 }

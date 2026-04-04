@@ -26,25 +26,24 @@ class EmpresaResource extends Resource
     protected static ?string $pluralModelLabel = 'Empresa';
     protected static ?int $navigationSort = 0;
 
-    public static function isSuperAdmin(): bool
+    public static function canAccess(): bool
     {
-        return Auth::user()?->email === 'joseforozco@gmail.com'
-            || Auth::id() === 1;
+        return Auth::user()?->can('empresa.ver') ?? false;
     }
 
     public static function canCreate(): bool
     {
-        return static::isSuperAdmin();
+        return Auth::user()?->can('empresa.editar') ?? false;
     }
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return static::isSuperAdmin();
+        return Auth::user()?->can('empresa.editar') ?? false;
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return static::isSuperAdmin();
+        return Auth::user()?->can('empresa.eliminar') ?? false;
     }
 
 

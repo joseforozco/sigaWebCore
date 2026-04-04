@@ -53,7 +53,7 @@ class AdminPanelProvider extends PanelProvider
             ->multiFactorAuthentication([
                 AppAuthentication::make()->recoverable(),
                 EmailAuthentication::make()
-            ], isRequired: false
+            ], isRequired: (bool) env('MFA_REQUIRED', false)
             )
             ->breadcrumbs(false)
             ->databaseNotifications()

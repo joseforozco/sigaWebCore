@@ -34,6 +34,7 @@ class RoleSeeder extends Seeder
             'config.editar',
             'empresa.ver',
             'empresa.editar',
+            'empresa.eliminar',
             'bodega.ver',
             'bodega.crear',
             'bodega.editar',
