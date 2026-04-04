@@ -1,25 +1,31 @@
-# Contexto del Proyecto testinv
+# Contexto del Proyecto sigaBase (SIGA Web Core)
 
 ## Información General
-- **Nombre**: testinv
-- **Título**: Gestión Administrativa de Inventarios
-- **Base de datos**: testinv
-- **URL**: https://testinv.test
+- **Nombre del repo**: sigaBase (local) / sigaWebCore (GitHub)
+- **Repositorio**: https://github.com/joseforozco/sigaWebCore
+- **Título**: SIGA Web Core — Plantilla base para proyectos Laravel + Filament
 - **Empresa**: SIGA Software
+- **URL de desarrollo local**: https://testinv.test
+- **Base de datos local**: testinv
+
+## Propósito
+Este repositorio es la **plantilla base** desde la cual se clonan todos los
+proyectos nuevos. No es un proyecto de producción en sí mismo.
+
+El script `D:\www\scripts\crear.ps1` (v2.0) clona este repo desde GitHub,
+genera el .env, ejecuta migraciones/seeders y deja el proyecto listo para
+desarrollar.
+
+## Historia
+- crear2.ps1 / crear3.ps1: intentos anteriores de automatización (descartados)
+- crear.ps1 v2.0: método actual — clonar desde GitHub y configurar
 
 ## Stack Tecnológico
 - Laravel 12 LTS
 - Filament v5.x
 - Spatie Permissions
-- DDD Architecture
-- PowerShell 7.5 optimizations
-
-## Estructura DDD
-- app/Services/
-- app/Repositories/
-- app/DataTransferObjects/
-- app/Observers/
-- app/Enums/
+- DDD Architecture (Services, Repositories, DTOs, Observers, Enums)
+- PowerShell 7.5 (script de instalación)
 
 ## Plugins Instalados
 1. tapp/filament-footer
@@ -29,7 +35,27 @@
 5. awcodes/light-switch
 6. awcodes/filament-quick-create
 7. pxlrbt/filament-excel
+8. joaopaulolndev/filament-edit-profile
+9. joseforozco/filament-auto-logout (fork propio — instalado y funcionando)
 
-## Estado de Instalación
-Creado: 2026-04-02 15:03:35
-Script: crear3.ps1 v23.0
+## Lo que el script crear.ps1 configura automáticamente
+- Nombre del proyecto y carpeta destino
+- Base de datos (nombre)
+- Título de la app (APP_NAME)
+- Nombre y URL de empresa en el footer
+- Variables de auto-logout (habilitado, 180s, advertencia 30s)
+- Mail SMTP (gmail — credenciales fijas en el script)
+- Usuario admin por defecto: joseforozco@gmail.com
+- APP_URL fija en https://siga.test (ajustar manualmente si difiere)
+
+## Estructura DDD
+- app/Services/
+- app/Repositories/
+- app/DataTransferObjects/
+- app/Observers/
+- app/Enums/
+
+## Estado
+Creado: 2026-04-02
+Última actualización: 2026-04-03
+Estado: Operativo como base. Filament v5 instalado con auto-logout activo.

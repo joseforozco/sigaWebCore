@@ -28,6 +28,7 @@ use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Auth\Register;
 use Swis\Filament\Backgrounds\FilamentBackgroundsPlugin;
 use Joaopaulolndev\FilamentEditProfile\FilamentEditProfilePlugin;
+use Joseforozco\FilamentAutoLogout\AutoLogoutPlugin;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -45,6 +46,7 @@ class AdminPanelProvider extends PanelProvider
                 : asset('images/sigaweb-logo.svg'))
             ->brandLogoHeight('4rem')
             ->favicon(asset('images/sigaweb-icon.svg'))
+            ->font('JetBrains Mono')
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -54,10 +56,6 @@ class AdminPanelProvider extends PanelProvider
             ], isRequired: false
             )
             ->breadcrumbs(false)
-            ->renderHook(
-                PanelsRenderHook::FOOTER,
-                fn() => view('filament.footer')
-            )
             ->databaseNotifications()
             ->databaseNotificationsPolling('60s')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
@@ -106,9 +104,9 @@ class AdminPanelProvider extends PanelProvider
                 )
                 ->shouldShowMultiFactorAuthentication()
                 ->shouldRegisterNavigation()
-                ->shouldShowEmailForm()
-                ->shouldShowSanctumTokens(),
-
+                ->shouldShowEmailForm(),
+            AutoLogoutPlugin::make()             
+               
         ]);
     }
 }

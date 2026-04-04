@@ -188,8 +188,8 @@ class ProveedorResource extends Resource
             Section::make('Condiciones comerciales')
                 ->columns(2)
                 ->schema([
-                    TextEntry::make('saldo')->label('Saldo')->money('COP', locale: 'es_CO'),
-                    TextEntry::make('limite_credito')->label('Límite de Crédito')->money('COP', locale: 'es_CO'),
+                    TextEntry::make('saldo')->label('Saldo')->currency('COP'),
+                    TextEntry::make('limite_credito')->label('Límite de Crédito')->currency('COP'),
                     TextEntry::make('dias_credito')->label('Días de Crédito'),
                     TextEntry::make('dias_pago')->label('Días de Pago'),
                 ]),
@@ -224,7 +224,7 @@ class ProveedorResource extends Resource
                     ->sortable(),
                 TextColumn::make('saldo')
                     ->label('Saldo')
-                    ->money('COP', locale: 'es_CO')
+                    ->currency('COP')
                     ->sortable(),
                 TextColumn::make('activo')
                     ->label('Activo')

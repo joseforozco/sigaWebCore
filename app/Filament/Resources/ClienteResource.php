@@ -215,11 +215,10 @@ class ClienteResource extends Resource
             Section::make('Crédito y Saldo')
                 ->columns(2)
                 ->schema([
-                    TextEntry::make('saldo')->label('Saldo')->money('COP', locale: 'es_CO'),
-                    TextEntry::make('limite_credito')->label('Límite de Crédito')->money('COP', locale: 'es_CO'),
+                    TextEntry::make('saldo')->label('Saldo')->currency('COP'),
+                    TextEntry::make('limite_credito')->label('Límite de Crédito')->currency('COP'),
                     TextEntry::make('dias_credito')->label('Días de Crédito'),
                     TextEntry::make('dias_pago')->label('Días de Pago'),
-                    TextEntry::make('listaPrecio.nombre')->label('Lista de Precios')->placeholder('Precio estándar'),
                 ]),
             Section::make('Estado')
                 ->columns(2)
@@ -252,7 +251,7 @@ class ClienteResource extends Resource
                     ->sortable(),
                 TextColumn::make('saldo')
                     ->label('Saldo')
-                    ->money('COP', locale: 'es_CO')
+                    ->currency('COP')
                     ->sortable(),
                 TextColumn::make('activo')
                     ->label('Activo')

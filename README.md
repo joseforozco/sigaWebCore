@@ -1,66 +1,91 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SIGA Web Core
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Plantilla base para proyectos Laravel 12 + Filament v5 de SIGA Software.
 
-## About Laravel
+Este repositorio **no es un proyecto de producción** — es el punto de partida
+que se clona para crear nuevos proyectos mediante el script `crear.ps1`.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **Laravel 12 LTS**
+- **Filament v5**
+- **Spatie Permissions** (roles: administrador, auxiliar, contador, vendedor)
+- **MySQL**
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Crear un nuevo proyecto
 
-## Learning Laravel
+Desde PowerShell 7.5, ejecutar el script instalador:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+```powershell
+D:\www\scripts\crear.ps1
+```
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+El script solicita:
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+| Campo | Descripción |
+|---|---|
+| Nombre del proyecto | Nombre de carpeta y base de datos |
+| Base de datos | Nombre del schema MySQL |
+| Título de la app | Aparece en el panel y correos |
+| Footer empresa | Nombre en el pie de página |
+| Footer URL | Enlace en el pie de página |
 
-## Laravel Sponsors
+Luego clona este repositorio, genera el `.env`, ejecuta `migrate:fresh --seed`
+y optimiza la app. Al finalizar, el proyecto queda accesible en
+`https://siga.test/admin`.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Credenciales por defecto
 
-### Premium Partners
+| Campo | Valor |
+|---|---|
+| Email | joseforozco@gmail.com |
+| Password | Digital2019** |
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+## Plugins incluidos
 
-## Contributing
+| Plugin | Descripción |
+|---|---|
+| `tapp/filament-footer` | Footer personalizable |
+| `nben/filament-record-nav` | Navegación entre registros |
+| `torgodly/html2media` | Exportar a imagen/PDF |
+| `swisnl/filament-backgrounds` | Fondos en pantalla de login |
+| `awcodes/light-switch` | Modo claro/oscuro |
+| `awcodes/filament-quick-create` | Creación rápida desde navbar |
+| `pxlrbt/filament-excel` | Exportación Excel |
+| `joaopaulolndev/filament-edit-profile` | Edición de perfil con 2FA y tokens |
+| `joseforozco/filament-auto-logout` | Cierre de sesión automático por inactividad |
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Módulos base incluidos
 
-## Code of Conduct
+- **Empresa** — datos de la empresa (único registro, requerido antes de operar)
+- **Usuarios** — gestión con aprobación manual y notificaciones por correo
+- **Clientes** — catálogo con crédito, ubicación y exportación Excel
+- **Proveedores** — catálogo con ubicación y exportación Excel
+- **Formas de pago** — catálogo
+- **Impuestos** — catálogo
+- **Unidades de medida** — catálogo
+- **Auditoría** — trazabilidad a nivel de tabla y de documento
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Autenticación
 
-## Security Vulnerabilities
+- Login personalizado: bloquea usuarios inactivos con mensaje descriptivo
+- Registro público: crea usuarios como `activo = false`, el administrador aprueba
+- 2FA opcional: TOTP (app autenticadora) y por correo
+- Auto-logout configurable vía variables de entorno:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```env
+FILAMENT_AUTO_LOGOUT_ENABLED=true
+FILAMENT_AUTO_LOGOUT_DURATION_IN_SECONDS=180
+FILAMENT_AUTO_LOGOUT_WARN_BEFORE_IN_SECONDS=30
+FILAMENT_AUTO_LOGOUT_SHOW_TIME_LEFT=true
+```
 
-## License
+## Variables de entorno relevantes
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```env
+APP_NAME="Nombre del proyecto"
+APP_URL=https://siga.test
+DB_DATABASE=nombre_db
+FOOTER_COMPANY_NAME="SIGA Software"
+FOOTER_COMPANY_URL="https://www.joseforozco.com"
+```

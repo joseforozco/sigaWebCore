@@ -140,6 +140,13 @@
       0 => 'Joaopaulolndev\\FilamentEditProfile\\FilamentEditProfileServiceProvider',
     ),
   ),
+  'joseforozco/filament-auto-logout' => 
+  array (
+    'providers' => 
+    array (
+      0 => 'Joseforozco\\FilamentAutoLogout\\AutoLogoutServiceProvider',
+    ),
+  ),
   'kirschbaum-development/eloquent-power-joins' => 
   array (
     'providers' => 
@@ -202,13 +209,6 @@
     'providers' => 
     array (
       0 => 'Carbon\\Laravel\\ServiceProvider',
-    ),
-  ),
-  'niladam/filament-auto-logout' => 
-  array (
-    'providers' => 
-    array (
-      0 => 'Niladam\\FilamentAutoLogout\\AutoLogoutServiceProvider',
     ),
   ),
   'nunomaduro/collision' => 
