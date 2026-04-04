@@ -1,3 +1,7 @@
+# Archivos internos del proyecto
+/logs
+CLAUDE.md
+
 /.phpunit.cache
 /node_modules
 /public/build
