@@ -1,5 +1,6 @@
 # Archivos internos del proyecto
 /logs
+/.claude
 CLAUDE.md
 
 /.phpunit.cache
