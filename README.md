@@ -34,12 +34,6 @@ Luego clona este repositorio, genera el `.env`, ejecuta `migrate:fresh --seed`
 y optimiza la app. Al finalizar, el proyecto queda accesible en
 `https://siga.test/admin`.
 
-## Credenciales por defecto
-
-| Campo | Valor |
-|---|---|
-| Email | joseforozco@gmail.com |
-| Password | Digital2019** |
 
 ## Plugins incluidos
 
@@ -73,19 +67,3 @@ y optimiza la app. Al finalizar, el proyecto queda accesible en
 - 2FA opcional: TOTP (app autenticadora) y por correo
 - Auto-logout configurable vía variables de entorno:
 
-```env
-FILAMENT_AUTO_LOGOUT_ENABLED=true
-FILAMENT_AUTO_LOGOUT_DURATION_IN_SECONDS=180
-FILAMENT_AUTO_LOGOUT_WARN_BEFORE_IN_SECONDS=30
-FILAMENT_AUTO_LOGOUT_SHOW_TIME_LEFT=true
-```
-
-## Variables de entorno relevantes
-
-```env
-APP_NAME="Nombre del proyecto"
-APP_URL=https://siga.test
-DB_DATABASE=nombre_db
-FOOTER_COMPANY_NAME="SIGA Software"
-FOOTER_COMPANY_URL="https://www.joseforozco.com"
-```
