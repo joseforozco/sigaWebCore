@@ -21,8 +21,9 @@ desarrollar.
 - crear.ps1 v2.0: método actual — clonar desde GitHub y configurar
 
 ## Stack Tecnológico
-- Laravel 12 LTS
+- Laravel 13
 - Filament v5.x
+- PHP 8.4
 - Spatie Permissions
 - DDD Architecture (Services, Repositories, DTOs, Observers, Enums)
 - PowerShell 7.5 (script de instalación)

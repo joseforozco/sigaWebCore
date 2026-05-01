@@ -1,14 +1,15 @@
 # SIGA Web Core
 
-Plantilla base para proyectos Laravel 12 + Filament v5 de SIGA Software.
+Plantilla base para proyectos Laravel 13 + Filament v5 de SIGA Software.
 
 Este repositorio **no es un proyecto de producción** — es el punto de partida
 que se clona para crear nuevos proyectos mediante el script `crear.ps1`.
 
 ## Stack
 
-- **Laravel 12 LTS**
+- **Laravel 13**
 - **Filament v5**
+- **PHP 8.4**
 - **Spatie Permissions** (roles: administrador, auxiliar, contador, vendedor)
 - **MySQL**
 
